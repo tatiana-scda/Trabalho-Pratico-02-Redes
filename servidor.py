@@ -53,7 +53,7 @@ def processaPacote(pacote):
     tcp.send(ack)
 
     with open(arquivo_saida, 'r') as saida:
-        print saida.read()
+        print (saida.read())
 
 
 def recebendoPacote(pacote):#ACK
@@ -70,10 +70,10 @@ def recebendoPacote(pacote):#ACK
                 if seqNum != primeiro_janela:
                     completo = True
                     for i in range(primeiro_janela, seqNum):
-                    if janelaDeslizantePacotes[i]== "":
-                        completo = False
-                    if completo:
-                        processaPacote(pacote)
+                        if (janelaDeslizantePacotes[i]== ""):
+                            completo = False
+                        if completo:
+                            processaPacote(pacote)
                 processaPacote(pacote)
 
 threading.Thread(target = recebendoPacoteACK, args = (tcp, )).start()
