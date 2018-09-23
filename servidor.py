@@ -1,8 +1,27 @@
+#!/usr/bin/env python3
+
+import socket
 import hashlib
 import time
 import bitstring
+import sys
+import threading
 
-janelaDeslizante = {}
+arquivo_saida  = sys.argv[1]
+port           = sys.argv[2]
+tamanho_janela = sys.argv[3]
+md5_erro       = sys.argv[5]
+
+janelaDeslizanteTempos = {}
+janelaDeslizantePacotes = {}
+janelaDeslizanteRecebidos = {}
+primeiro_janela = 0
+
+HOST = ''
+PORT = int(port)
+tcp  = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
+dest = (HOST, PORT)
+tcp.connect(dest) #cria conexao
 
 def calculaMD5Pacote(pacote):
     size = int.from_bytes(pacote[20:22]) 

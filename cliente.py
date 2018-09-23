@@ -1,18 +1,28 @@
 #!/usr/bin/env python3
 
+import socket
 import hashlib
 import time
 import bitstring
 import sys
 import threading
 
-tamanho_janela = 4
 arquivo_entrada = sys.argv[1]
-timeout = sys.argv[2]
+ip_port         = sys.argv[2]
+tamanho_janela  = sys.argv[3]
+timeout         = sys.argv[4]
+md5_erro        = sys.argv[5]
+
 janelaDeslizanteTempos = {}
 janelaDeslizantePacotes = {}
 janelaDeslizanteRecebidos = {}
 primeiro_janela = 0
+
+HOST = ip_port[0:ip_port.find(':')]
+PORT = int(ip_port[ip_port.find(':')+1:])
+tcp  = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
+dest = (HOST, PORT)
+tcp.connect(dest) #cria conexao
 
 def calculaMD5ACK(pacote):
     m   = hashlib.md5()
@@ -25,6 +35,8 @@ def calculaMD5(pacote, comeco):
     md5                      = m.update(pacote)
     md5                      = m.digest()
     pacote[comeco:comeco+16] = md5
+    if random.uniform(0,1) > md5_erro:
+        pacote[comeco+16] = bitstring.BitArray(uint=0, lenght=4).bytes
     return pacote
 
 def criadorPacote(num_seq, timestamp_seg, timestamp_nanoseg, mensagem):
@@ -67,19 +79,16 @@ def processarArquivo():
             while !janelaEstaCheia(): #-1 pois tem de ter um espaco de buffer
                 mensagem          = file.readline()
                 
-                #timestamp         = time.time_ns()
-                #timestamp_sec     = int(timestamp / (10 ** 9))
-                #timestamp_nanosec = timestamp % (10 ** 9)
-                timestamp_sec = 1324894851
-                timestamp_nanosec = 5258448
+                timestamp         = time.time()
+                timestamp_sec     = int(timestamp)
+                timestamp_nanosec = int((timestamp % 1)*(10 ** 9))
                 
                 pacote            = criadorPacote(id_pacote, timestamp_sec, timestamp_nanosec, mensagem)
-                #print(pacote)
-                id_pacote = id_pacote + 1
-                #tcp.send(pacote) - enviaPacote
+                tcp.send(pacote) #envia_pacote
+
                 janelaDeslizantePacotes[id_pacote] = pacote
                 janelaDeslizanteTempos[id_pacote]  = time.time()
-                id_pacote = id_pacote+1
+                id_pacote                          = id_pacote+1
 
 def recebendoPacoteACK():
         pacote = tcp.recv(36)
@@ -87,6 +96,6 @@ def recebendoPacoteACK():
             seqNum = pacote[0:8]
             seqNum = int.from_bytes(seqNum, byteorder='big', signed=False) #transformar de bytearray para int
             janelaDeslizanteRecebidos[seqNum] = True
- 
-threading.Thread(target = recebendoPacoteACK, args = (tcp, arquivo_saida, )).start()
-threading.Thread(target = processarArquivo,   args = (tcp, arquivo_entrada, )).start()
+
+threading.Thread(target = recebendoPacoteACK, args = (tcp, )).start()
+threading.Thread(target = processarArquivo,   args = (tcp, )).start()
