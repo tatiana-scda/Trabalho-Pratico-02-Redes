@@ -6,27 +6,23 @@ import hashlib
 import time
 import bitstring
 import sys
-import threading
 from collections import defaultdict
 
-arquivo_entrada = sys.argv[1]
-ip_port         = sys.argv[2]
-tamanho_janela  = int(sys.argv[3])
-timeout         = int(sys.argv[4])
-md5_erro        = float(sys.argv[5])
-janela_vazia    = True
-
-janelaDeslizanteTempos = defaultdict(dict)
-janelaDeslizantePacotes = defaultdict(dict)
-janelaDeslizanteRecebidos = defaultdict(dict)
-primeiro_janela = 0
+arquivo_entrada             = sys.argv[1]
+ip_port                     = sys.argv[2]
+tamanho_janela              = int(sys.argv[3])
+timeout                     = int(sys.argv[4])
+md5_erro                    = float(sys.argv[5])
+threads                     = {} 
+janelaDeslizanteACKRecebido = {}  
+mensagens_enviadas          = 0
+linhas                      = []
 
 HOST = ip_port[0:ip_port.find(':')]
 PORT = int(ip_port[ip_port.find(':')+1:])
-tcp  = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
-tcp.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+udp  = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+udp.settimeout(timeout)
 dest = (HOST, PORT)
-tcp.connect(dest) #cria conexao
 
 def calculaMD5ACK(pacote):
     m   = hashlib.md5()
@@ -54,61 +50,81 @@ def criadorPacote(num_seq, timestamp_seg, timestamp_nanoseg, mensagem):
     print(pacote)
     return pacote
 
-def janelaEstaCheia():
-    global janelaDeslizanteTempos
-    global janelaDeslizantePacotes
-    global janelaDeslizanteRecebidos
-    global janela_vazia
-    if janela_vazia == True:
-        return False
-    if len(janelaDeslizanteTempos) == tamanho_janela:
-        esta_enviado = True
-        for chave, valor in janelaDeslizanteRecebidos.items():
-            if valor != {}: 
-                esta_enviado = False
-        if esta_enviado:
-            janelaDeslizanteTempos    = defaultdict(dict)
-            janelaDeslizantePacotes   = defaultdict(dict)
-            janelaDeslizanteRecebidos = defaultdict(dict)
-            janela_vazia = True
-        return True
-    return False
+def recebendoPacoteACK(thread):
+    global timeout    
+    pacote = udp.recvfrom(36)[0]
+    if(calculaMD5ACK(pacote)): #se o md5 funcionar para o pacote
+        threading.Lock().acquire()
+        seqNum = pacote[0:8]
+        seqNum = int.from_bytes(seqNum, byteorder='big', signed=False) #bytearray para int
+        janelaDeslizanteACKRecebido[seqNum-1] = True
+        threading.Lock().release()
+    else:
+        time.sleep(timeout)
+        mensagem          = linhas[thread]
+        timestamp         = time.time() #para o seg e nanoseg serem da mesma base
+        timestamp_sec     = int(timestamp)
+        timestamp_nanosec = int((timestamp % 1)*(10 ** 9))
 
-def processarArquivo():
-    global janela_vazia
-    with open(arquivo_entrada) as file:
-        id_pacote = 0
-        tempo_passado = time.time() - timeout
-        while True:
-            for i in range(primeiro_janela, primeiro_janela + tamanho_janela):
-                if janelaDeslizanteTempos[str(i)] != {}:
-                    tempo = time.time() - janelaDeslizanteTempos[str(i)]
-                    if tempo > timeout:
-                        tcp.send(janelaDeslizantePacotes[str(i)])
-                        janelaDeslizanteTempos[str(i)] = time.time()
+        pacote = criadorPacote(seqNum, timestamp_sec, timestamp_nanosec, mensagem)
+        udp.sendto(pacote, dest) #envia_pacote
 
+        threading.Lock().acquire()
+        mensagens_enviadas = mensagens_enviadas + 1
+        threading.Lock().release()
+            
+def preencherDicts(arquivo_entrada):
+    global threads, janelaDeslizanteACKRecebido, linhas
+    with open(arquivo_entrada, "r") as file:
+        arquivo = file.readlines()
+    linhas = arquivo
 
-            while not janelaEstaCheia(): #-1 pois tem de ter um espaco de buffer
-                mensagem          = file.readline()
-                
-                timestamp         = time.time()
-                timestamp_sec     = int(timestamp)
-                timestamp_nanosec = int((timestamp % 1)*(10 ** 9))
-                
-                pacote            = criadorPacote(id_pacote, timestamp_sec, timestamp_nanosec, mensagem)
-                tcp.send(pacote) #envia_pacote
-                janelaDeslizantePacotes[str(id_pacote)] = pacote
-                janelaDeslizanteTempos[str(id_pacote)]  = time.time()
-                id_pacote                               = id_pacote+1
-                janela_vazia = False
+    for thread_id in range(len(arquivo)):
+        threads[thread_id]                     = None
+        janelaDeslizanteACKRecebido[thread_id] = False
 
+def primeiroSemACK():
+    global janelaDeslizanteACKRecebido
+    for posicao in range(len(janelaDeslizanteACKRecebido)):
+        if janelaDeslizanteACKRecebido[posicao] == 0:
+            return posicao #posicao do pacote que ainda nao foi recebida a confirmacao ACK
+        else:
+            print("Todos foram recebidos")
 
-def recebendoPacoteACK():
-        pacote = tcp.recv(36)
-        if(calculaMD5ACK(pacote)): #se o md5 funcionar para o pacote
-            seqNum = pacote[0:8]
-            seqNum = int.from_bytes(seqNum, byteorder='big', signed=False) #transformar de bytearray para int
-            janelaDeslizanteRecebidos[str(seqNum)] = True
+def enviarPacote(thread):
+    global arquivo_entrada, udp, dest, mensagens_enviadas 
+    
+    id_pacote         = thread+1
+    mensagem          = linhas[thread]
+    timestamp         = time.time() #para o seg e nanoseg serem da mesma base
+    timestamp_sec     = int(timestamp)
+    timestamp_nanosec = int((timestamp % 1)*(10 ** 9))
 
-threading.Thread(target = recebendoPacoteACK).start()
-threading.Thread(target = processarArquivo).start()
+    #criacao do pacote
+    pacote            = criadorPacote(id_pacote, timestamp_sec, timestamp_nanosec, mensagem)
+    udp.sendto(pacote, dest) #envia_pacote
+
+    threading.Lock().acquire()
+    mensagens_enviadas = mensagens_enviadas + 1
+    threading.Lock().release()
+        while janelaDeslizanteACKRecebido[thread] != True:
+            recebendoPacoteACK(thread)
+
+def janelaDeslizanteThreads():
+    global tamanho_janela
+    id_esperando = 0
+    preencherDicts(arquivo_entrada) #de acordo com a entrada, preenche os dicts
+
+    for thread in len(threads):
+        threads[thread] = threading.Thread(target=enviarPacote, args=(thread))
+        if threading.active_count() > tamanho_janela: #retorna numero de threads vivos
+            while not janelaDeslizanteACKRecebido[id_esperando]:
+                pass
+            id_esperando = primeiroSemACK()
+        threads[thread] = thread[thread].start()
+
+##### EXECUCAO DO PROGRAMA #####    
+janelaDeslizanteThreads()
+udp.close()
+end = time.time()
+
