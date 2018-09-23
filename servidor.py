@@ -48,15 +48,14 @@ def criadorPacoteACK(num_seq, timestamp_seg, timestamp_nanoseg):
     print(pacote)
     return pacote
 
-def processaPacote(pacote):
+def processaPacote(pacote, tamanho):
     ack = criadorPacoteACK(pacote[0:8], pacote[8:16],pacote[16:20])
     tcp.send(ack)
-
+    mensagem = str(pacote[22:22+tamanho])
     with open(arquivo_saida, 'r') as saida:
         print (saida.read())
 
-
-def recebendoPacote(pacote):#ACK
+def recebendoPacote():#ACK
         pacote            = tcp.recv(22)
         tamanho = int.from_bytes(pacote[20:22], byteorder='big', signed=False) 
         pacote.extend(tcp.recv(tamanho+16))
@@ -73,9 +72,8 @@ def recebendoPacote(pacote):#ACK
                         if (janelaDeslizantePacotes[i]== ""):
                             completo = False
                         if completo:
-                            processaPacote(pacote)
-                processaPacote(pacote)
+                            processaPacote(pacote, tamanho)
+                processaPacote(pacote, tamanho)
 
-threading.Thread(target = recebendoPacoteACK, args = (tcp, )).start()
-threading.Thread(target = processarArquivo,   args = (tcp, )).start()
-
+while True:
+    recebendoPacote()
