@@ -50,15 +50,15 @@ def criadorPacoteACK(num_seq, timestamp_seg, timestamp_nanoseg):
     pacote.extend(timestamp_seg)
     pacote.extend(timestamp_nanoseg)
     pacote                      = calculaMD5ACK(pacote)
-    print(pacote)
     return pacote
 
 def processaPacote(pacote, tamanho):
     ack = criadorPacoteACK(pacote[0:8], pacote[8:16],pacote[16:20])
     tcp.send(ack)
-    mensagem = str(pacote[22:22+tamanho])
+    mensagem = pacote[22:22+tamanho]
     with open(arquivo_saida, 'w') as saida:
-        saida.write(mensagem)
+        import pdb; pdb.set_trace()
+        saida.write(mensagem.decode("UTF-8"))
         saida.flush()
 
 def recebendoPacote():#ACK

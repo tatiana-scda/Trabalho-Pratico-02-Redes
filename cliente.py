@@ -14,7 +14,7 @@ ip_port         = sys.argv[2]
 tamanho_janela  = int(sys.argv[3])
 timeout         = int(sys.argv[4])
 md5_erro        = float(sys.argv[5])
-janela_cheia    = False
+janela_vazia    = True
 
 janelaDeslizanteTempos = defaultdict(dict)
 janelaDeslizantePacotes = defaultdict(dict)
@@ -58,25 +58,24 @@ def janelaEstaCheia():
     global janelaDeslizanteTempos
     global janelaDeslizantePacotes
     global janelaDeslizanteRecebidos
-    global janela_cheia
-    if janela_cheia == False:
+    global janela_vazia
+    if janela_vazia == True:
         return False
     if len(janelaDeslizanteTempos) == tamanho_janela:
         esta_enviado = True
-        import pdb; pdb.set_trace()
-        for chave, valor in janelaDeslizanteTempos.items():
-            if valor == False: 
+        for chave, valor in janelaDeslizanteRecebidos.items():
+            if valor != {}: 
                 esta_enviado = False
         if esta_enviado:
             janelaDeslizanteTempos    = defaultdict(dict)
             janelaDeslizantePacotes   = defaultdict(dict)
             janelaDeslizanteRecebidos = defaultdict(dict)
-            janela_cheia = False
+            janela_vazia = True
         return True
     return False
 
 def processarArquivo():
-    global janela_cheia
+    global janela_vazia
     with open(arquivo_entrada) as file:
         id_pacote = 0
         tempo_passado = time.time() - timeout
@@ -101,7 +100,7 @@ def processarArquivo():
                 janelaDeslizantePacotes[str(id_pacote)] = pacote
                 janelaDeslizanteTempos[str(id_pacote)]  = time.time()
                 id_pacote                               = id_pacote+1
-                janela_cheia = True
+                janela_vazia = False
 
 
 def recebendoPacoteACK():
