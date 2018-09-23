@@ -94,31 +94,33 @@ def primeiroSemACK():
 
 def enviarPacote(thread, udp, dest, timeout):
     global arquivo_entrada 
+    try:
+        id_pacote         = thread+1
+        mensagem          = linhas[thread]
+        timestamp         = time.time() #para o seg e nanoseg serem da mesma base
+        timestamp_sec     = int(timestamp)
+        timestamp_nanosec = int((timestamp % 1)*(10 ** 9))
+
+        #criacao do pacote
+        pacote            = criadorPacote(id_pacote, timestamp_sec, timestamp_nanosec, mensagem)
+        udp.sendto(pacote, dest) #envia_pacote
+
+        threading.Lock().acquire()
+        if threading.Lock().locked() == True:
+            threading.Lock().release()
     
-    id_pacote         = thread+1
-    mensagem          = linhas[thread]
-    timestamp         = time.time() #para o seg e nanoseg serem da mesma base
-    timestamp_sec     = int(timestamp)
-    timestamp_nanosec = int((timestamp % 1)*(10 ** 9))
-
-    #criacao do pacote
-    pacote            = criadorPacote(id_pacote, timestamp_sec, timestamp_nanosec, mensagem)
-    udp.sendto(pacote, dest) #envia_pacote
-
-    threading.Lock().acquire()
-    if threading.Lock().locked() == True:
-        threading.Lock().release()
-    
-    while janelaDeslizanteACKRecebido[thread] != True:
-        recebendoPacoteACK(thread, udp, dest, timeout, )
-
+        while janelaDeslizanteACKRecebido[thread] != True:
+            recebendoPacoteACK(thread, udp, dest, timeout)
+    except Exception as e:
+        if janelaDeslizanteACKRecebido[thread]:
+            enviarPacote()
 def janelaDeslizanteThreads():
     global tamanho_janela, udp, dest, timeout
     id_esperando = 0
     preencherDicts(arquivo_entrada) #de acordo com a entrada, preenche os dicts
 
     for thread in range(len(threads)):
-        threads[thread] = threading.Thread(target=enviarPacote, args=(thread, udp, dest, timeout,))
+        threads[thread] = threading.Thread(target=enviarPacote, args=(thread, udp, dest, timeout))
         if threading.active_count() > tamanho_janela: #retorna numero de threads vivos
             while janelaDeslizanteACKRecebido[id_esperando] == False:
                 pass
