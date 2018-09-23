@@ -84,13 +84,12 @@ def preencherDicts(arquivo_entrada):
         threads[thread_id]                     = None
         janelaDeslizanteACKRecebido[thread_id] = False
 
-def primeiroSemACK():
-    global janelaDeslizanteACKRecebido
+def primeiroSemACK(janelaDeslizanteACKRecebido):
     for posicao in range(len(janelaDeslizanteACKRecebido)):
         if janelaDeslizanteACKRecebido[posicao] == False:
             return posicao #posicao do pacote que ainda nao foi recebida a confirmacao ACK
         else:
-            print("Todos foram recebidos")
+            return -1
 
 def enviarPacote(thread, udp, dest, timeout):
     global arquivo_entrada 
@@ -114,18 +113,21 @@ def enviarPacote(thread, udp, dest, timeout):
     except Exception as e:
         if janelaDeslizanteACKRecebido[thread]:
             enviarPacote(thread, udp, dest, timeout)
+
 def janelaDeslizanteThreads():
     global tamanho_janela, udp, dest, timeout
-    id_esperando = 0
     preencherDicts(arquivo_entrada) #de acordo com a entrada, preenche os dicts
+    id_esperando = primeiroSemACK(janelaDeslizanteACKRecebido)
 
     for thread in range(len(threads)):
         threads[thread] = threading.Thread(target=enviarPacote, args=(thread, udp, dest, timeout))
         if threading.active_count() > tamanho_janela: #retorna numero de threads vivos
             while janelaDeslizanteACKRecebido[id_esperando] == False:
                 pass
-            id_esperando = primeiroSemACK()
+            id_esperando = primeiroSemACK(janelaDeslizanteACKRecebido)
         threads[thread] = threads[thread].start()
+    while(janelaDeslizanteACKRecebido[id_esperando]) != -1:
+        pass
     udp.close()
 
 ##### EXECUCAO DO PROGRAMA #####    
