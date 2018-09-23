@@ -76,7 +76,7 @@ def processarArquivo():
                         janelaDeslizanteTempos[i] = time.clock()
 
 
-            while !janelaEstaCheia(): #-1 pois tem de ter um espaco de buffer
+            while (!janelaEstaCheia()): #-1 pois tem de ter um espaco de buffer
                 mensagem          = file.readline()
                 
                 timestamp         = time.time()
