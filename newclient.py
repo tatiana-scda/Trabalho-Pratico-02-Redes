@@ -36,7 +36,7 @@ def calculaMD5(pacote, comeco):
     md5                      = m.update(pacote)
     md5                      = m.digest()
     pacote[comeco:comeco+16] = md5
-    if random.random() > md5_erro:
+    if random.random() < md5_erro:
         pacote[comeco+15:comeco+16] = bitstring.BitArray(uint=0, length=8).bytes
     return pacote
 
@@ -48,7 +48,6 @@ def criadorPacote(num_seq, timestamp_seg, timestamp_nanoseg, mensagem):
     pacote[20:22] = bitstring.BitArray(uint=len(mensagem), length=16).bytes
     pacote.extend(map(ord, mensagem))
     pacote        = calculaMD5(pacote, 22+len(mensagem))
-    print(pacote)
     return pacote
 
 def recebendoPacoteACK(thread):
