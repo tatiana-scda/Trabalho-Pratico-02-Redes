@@ -122,8 +122,12 @@ def janelaDeslizanteThreads():
     for thread in range(len(threads)):
         threads[thread] = threading.Thread(target=enviarPacote, args=(thread, udp, dest, timeout))
         if threading.active_count() > tamanho_janela: #retorna numero de threads vivos
+            #while janelaDeslizanteACKRecebido[id_esperando] == False:
+             #   pass
             id_esperando = primeiroSemACK(janelaDeslizanteACKRecebido)
         threads[thread] = threads[thread].start()
+    #while(janelaDeslizanteACKRecebido[id_esperando] != -1):
+     #   pass
     udp.close()
 
 ##### EXECUCAO DO PROGRAMA #####    
