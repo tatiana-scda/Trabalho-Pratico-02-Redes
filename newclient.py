@@ -6,6 +6,7 @@ import hashlib
 import time
 import bitstring
 import sys
+import threading
 from collections import defaultdict
 
 arquivo_entrada             = sys.argv[1]
@@ -107,21 +108,21 @@ def enviarPacote(thread):
     threading.Lock().acquire()
     mensagens_enviadas = mensagens_enviadas + 1
     threading.Lock().release()
-        while janelaDeslizanteACKRecebido[thread] != True:
-            recebendoPacoteACK(thread)
+    while janelaDeslizanteACKRecebido[thread] != True:
+        recebendoPacoteACK(thread)
 
 def janelaDeslizanteThreads():
     global tamanho_janela
     id_esperando = 0
     preencherDicts(arquivo_entrada) #de acordo com a entrada, preenche os dicts
 
-    for thread in len(threads):
-        threads[thread] = threading.Thread(target=enviarPacote, args=(thread))
+    for thread in range(len(threads)):
+        threads[thread] = threading.Thread(target=enviarPacote, args=(thread, ))
         if threading.active_count() > tamanho_janela: #retorna numero de threads vivos
             while not janelaDeslizanteACKRecebido[id_esperando]:
                 pass
             id_esperando = primeiroSemACK()
-        threads[thread] = thread[thread].start()
+        threads[thread] = threads[thread].start()
 
 ##### EXECUCAO DO PROGRAMA #####    
 janelaDeslizanteThreads()
