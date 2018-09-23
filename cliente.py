@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import random
 import socket
 import hashlib
 import time
@@ -13,6 +14,7 @@ ip_port         = sys.argv[2]
 tamanho_janela  = int(sys.argv[3])
 timeout         = int(sys.argv[4])
 md5_erro        = float(sys.argv[5])
+janela_cheia    = False
 
 janelaDeslizanteTempos = defaultdict(dict)
 janelaDeslizantePacotes = defaultdict(dict)
@@ -22,6 +24,7 @@ primeiro_janela = 0
 HOST = ip_port[0:ip_port.find(':')]
 PORT = int(ip_port[ip_port.find(':')+1:])
 tcp  = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
+tcp.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 dest = (HOST, PORT)
 tcp.connect(dest) #cria conexao
 
@@ -37,7 +40,7 @@ def calculaMD5(pacote, comeco):
     md5                      = m.digest()
     pacote[comeco:comeco+16] = md5
     if random.uniform(0,1) > md5_erro:
-        pacote[comeco+16] = bitstring.BitArray(uint=0, lenght=4).bytes
+        pacote[comeco+15:comeco+16] = bitstring.BitArray(uint=0, length=8).bytes
     return pacote
 
 def criadorPacote(num_seq, timestamp_seg, timestamp_nanoseg, mensagem):
@@ -52,25 +55,34 @@ def criadorPacote(num_seq, timestamp_seg, timestamp_nanoseg, mensagem):
     return pacote
 
 def janelaEstaCheia():
+    global janelaDeslizanteTempos
+    global janelaDeslizantePacotes
+    global janelaDeslizanteRecebidos
+    global janela_cheia
+    if janela_cheia == False:
+        return False
     if len(janelaDeslizanteTempos) == tamanho_janela:
         esta_enviado = True
-        for chave, valor in janelaDeslizantesRecebidos:
+        import pdb; pdb.set_trace()
+        for chave, valor in janelaDeslizanteTempos.items():
             if valor == False: 
                 esta_enviado = False
         if esta_enviado:
             janelaDeslizanteTempos    = defaultdict(dict)
             janelaDeslizantePacotes   = defaultdict(dict)
             janelaDeslizanteRecebidos = defaultdict(dict)
+            janela_cheia = False
         return True
     return False
 
 def processarArquivo():
+    global janela_cheia
     with open(arquivo_entrada) as file:
         id_pacote = 0
         tempo_passado = time.time() - timeout
-        while True: 
+        while True:
             for i in range(primeiro_janela, primeiro_janela + tamanho_janela):
-                if janelaDeslizanteTempos[str(i)] != None:
+                if janelaDeslizanteTempos[str(i)] != {}:
                     tempo = time.time() - janelaDeslizanteTempos[str(i)]
                     if tempo > timeout:
                         tcp.send(janelaDeslizantePacotes[str(i)])
@@ -86,10 +98,11 @@ def processarArquivo():
                 
                 pacote            = criadorPacote(id_pacote, timestamp_sec, timestamp_nanosec, mensagem)
                 tcp.send(pacote) #envia_pacote
-
                 janelaDeslizantePacotes[str(id_pacote)] = pacote
                 janelaDeslizanteTempos[str(id_pacote)]  = time.time()
                 id_pacote                               = id_pacote+1
+                janela_cheia = True
+
 
 def recebendoPacoteACK():
         pacote = tcp.recv(36)

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import random
 import socket
 import hashlib
 import time
@@ -21,13 +22,14 @@ primeiro_janela = 0
 HOST = ''
 PORT = int(port)
 tcp  = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
+tcp.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 origin = (HOST, PORT)
 tcp.bind(origin)
 tcp.listen(1) #cria conexao
 tcp, adress = tcp.accept()
 
 def calculaMD5Pacote(pacote):
-    size = int.from_bytes(pacote[20:22]) 
+    size = int.from_bytes(pacote[20:22], byteorder='big', signed=False) 
     m    = hashlib.md5()
     md5  = m.update(pacote[0:22+size])
     md5  = m.digest()
@@ -39,7 +41,7 @@ def calculaMD5ACK(pacote):
     md5           = m.digest()
     pacote[20:36] = md5
     if random.uniform(0,1) > md5_erro:
-        pacote[36] = bitstring.BitArray(uint=0, lenght=4).bytes
+        pacote[35:36] = bitstring.BitArray(uint=0, length=8).bytes
     return pacote
 
 def criadorPacoteACK(num_seq, timestamp_seg, timestamp_nanoseg):
@@ -55,15 +57,16 @@ def processaPacote(pacote, tamanho):
     ack = criadorPacoteACK(pacote[0:8], pacote[8:16],pacote[16:20])
     tcp.send(ack)
     mensagem = str(pacote[22:22+tamanho])
-    with open(arquivo_saida, 'r') as saida:
-        print (saida.read())
+    with open(arquivo_saida, 'w') as saida:
+        saida.write(mensagem)
+        saida.flush()
 
 def recebendoPacote():#ACK
         pacoteb = tcp.recv(22)
         tamanho = int.from_bytes(pacoteb[20:22], byteorder='big', signed=False) 
         pacotez = tcp.recv(tamanho+16)
-        pacote  = bytearray(pacoteb).extend(pacotez)
-
+        pacote = bytearray(pacoteb)
+        pacote.extend(pacotez)
         if(calculaMD5Pacote(pacote)): #se o md5 funcionar para o pacote
             
             seqNum = pacote[0:8]
