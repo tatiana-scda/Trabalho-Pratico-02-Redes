@@ -6,16 +6,17 @@ import time
 import bitstring
 import sys
 import threading
+from collections import defaultdict
 
 arquivo_entrada = sys.argv[1]
 ip_port         = sys.argv[2]
-tamanho_janela  = sys.argv[3]
-timeout         = sys.argv[4]
-md5_erro        = sys.argv[5]
+tamanho_janela  = int(sys.argv[3])
+timeout         = int(sys.argv[4])
+md5_erro        = float(sys.argv[5])
 
-janelaDeslizanteTempos = {}
-janelaDeslizantePacotes = {}
-janelaDeslizanteRecebidos = {}
+janelaDeslizanteTempos = defaultdict(dict)
+janelaDeslizantePacotes = defaultdict(dict)
+janelaDeslizanteRecebidos = defaultdict(dict)
 primeiro_janela = 0
 
 HOST = ip_port[0:ip_port.find(':')]
@@ -57,26 +58,26 @@ def janelaEstaCheia():
             if valor == False: 
                 esta_enviado = False
         if esta_enviado:
-            janelaDeslizanteTempos    = {}
-            janelaDeslizantePacotes   = {}
-            janelaDeslizanteRecebidos = {}
+            janelaDeslizanteTempos    = defaultdict(dict)
+            janelaDeslizantePacotes   = defaultdict(dict)
+            janelaDeslizanteRecebidos = defaultdict(dict)
         return True
     return False
 
 def processarArquivo():
     with open(arquivo_entrada) as file:
         id_pacote = 0
-        tempo_passado = time.clock() - timeout
+        tempo_passado = time.time() - timeout
         while True: 
             for i in range(primeiro_janela, primeiro_janela + tamanho_janela):
-                if janelaDeslizanteTempos[i] != None:
-                    tempo = time.clock() - janelaDeslizanteTempos[i]
+                if janelaDeslizanteTempos[str(i)] != None:
+                    tempo = time.time() - janelaDeslizanteTempos[str(i)]
                     if tempo > timeout:
-                        tcp.send(janelaDeslizantePacotes[i]
-                        janelaDeslizanteTempos[i] = time.clock()
+                        tcp.send(janelaDeslizantePacotes[str(i)])
+                        janelaDeslizanteTempos[str(i)] = time.time()
 
 
-            while (!janelaEstaCheia()): #-1 pois tem de ter um espaco de buffer
+            while not janelaEstaCheia(): #-1 pois tem de ter um espaco de buffer
                 mensagem          = file.readline()
                 
                 timestamp         = time.time()
@@ -86,16 +87,16 @@ def processarArquivo():
                 pacote            = criadorPacote(id_pacote, timestamp_sec, timestamp_nanosec, mensagem)
                 tcp.send(pacote) #envia_pacote
 
-                janelaDeslizantePacotes[id_pacote] = pacote
-                janelaDeslizanteTempos[id_pacote]  = time.time()
-                id_pacote                          = id_pacote+1
+                janelaDeslizantePacotes[str(id_pacote)] = pacote
+                janelaDeslizanteTempos[str(id_pacote)]  = time.time()
+                id_pacote                               = id_pacote+1
 
 def recebendoPacoteACK():
         pacote = tcp.recv(36)
         if(calculaMD5ACK(pacote)): #se o md5 funcionar para o pacote
             seqNum = pacote[0:8]
             seqNum = int.from_bytes(seqNum, byteorder='big', signed=False) #transformar de bytearray para int
-            janelaDeslizanteRecebidos[seqNum] = True
+            janelaDeslizanteRecebidos[str(seqNum)] = True
 
-threading.Thread(target = recebendoPacoteACK, args = (tcp, )).start()
-threading.Thread(target = processarArquivo,   args = (tcp, )).start()
+threading.Thread(target = recebendoPacoteACK).start()
+threading.Thread(target = processarArquivo).start()
