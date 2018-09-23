@@ -113,7 +113,7 @@ def enviarPacote(thread, udp, dest, timeout):
             recebendoPacoteACK(thread, udp, dest, timeout)
     except Exception as e:
         if janelaDeslizanteACKRecebido[thread]:
-            enviarPacote()
+            enviarPacote(thread, udp, dest, timeout)
 def janelaDeslizanteThreads():
     global tamanho_janela, udp, dest, timeout
     id_esperando = 0
@@ -126,8 +126,8 @@ def janelaDeslizanteThreads():
                 pass
             id_esperando = primeiroSemACK()
         threads[thread] = threads[thread].start()
+    udp.close()
 
 ##### EXECUCAO DO PROGRAMA #####    
 janelaDeslizanteThreads()
-udp.close()
 
