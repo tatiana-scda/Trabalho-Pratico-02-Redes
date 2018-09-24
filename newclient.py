@@ -70,10 +70,6 @@ def recebendoPacoteACK(thread, udp, dest, timeout,):
         print(pacote)
         udp.sendto(pacote, dest) #envia_pacote
 
-        threading.Lock().acquire()
-        if threading.Lock().locked() == True:
-            threading.Lock().release()
-            
 def preencherDicts(arquivo_entrada):
     global threads, janelaDeslizanteACKRecebido, linhas
     with open(arquivo_entrada, "r") as file:
@@ -104,10 +100,6 @@ def enviarPacote(thread, udp, dest, timeout):
         pacote            = criadorPacote(id_pacote, timestamp_sec, timestamp_nanosec, mensagem)
         udp.sendto(pacote, dest) #envia_pacote
 
-        threading.Lock().acquire()
-        if threading.Lock().locked() == True:
-            threading.Lock().release()
-    
         while janelaDeslizanteACKRecebido[thread] != True:
             recebendoPacoteACK(thread, udp, dest, timeout)
     except Exception as e:
