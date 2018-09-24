@@ -117,11 +117,13 @@ def enviarPacote(udp, dest, timeout):
 
 
 
- def janelaDeslizante():
+ def janelaDeslizante(tamanho_janela, udp, dest, timeout):
     global tamanho_janela, udp, dest, timeout
     while(not janelaCheia):
         preencherDicts(arquivo_entrada) #de acordo com a entrada, preenche os dicts
         id_esperando = primeiroSemACK(janelaDeslizante)
+        enviarPacote(udp, dest, timeout)
+        recebendoPacote(janelaDeslizante, arquivo_entrada, udp, dest, timeout)
 
 
 
