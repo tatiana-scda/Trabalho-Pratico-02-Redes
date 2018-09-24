@@ -53,12 +53,12 @@ def recebendoPacoteACK(thread, udp, dest, timeout,):
     pacote = udp.recvfrom(36)[0]
 
     if(calculaMD5ACK(pacote)): #se o md5 funcionar para o pacote
-        threading.Lock().acquire()
+        lock.acquire()
         seqNum = pacote[0:8]
         seqNum = int.from_bytes(seqNum, byteorder='big', signed=False) #bytearray para int
         janelaDeslizanteACKRecebido[seqNum-1] = True
-        if threading.Lock().locked() == True:
-            threading.Lock().release()
+        if lock.locked() == True:
+            lock.release()
     else:
         time.sleep(timeout)
         mensagem          = linhas[thread]
@@ -108,6 +108,8 @@ def enviarPacote(thread, udp, dest, timeout):
 
 def janelaDeslizanteThreads():
     global tamanho_janela, udp, dest, timeout
+    lock = threading.Lock()
+    
     preencherDicts(arquivo_entrada) #de acordo com a entrada, preenche os dicts
     id_esperando = primeiroSemACK(janelaDeslizanteACKRecebido)
 

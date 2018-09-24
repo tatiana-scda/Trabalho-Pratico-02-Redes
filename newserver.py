@@ -8,16 +8,11 @@ import bitstring
 import sys
 import threading
 import struct
-from collections import defaultdict
 
 arquivo_saida  = sys.argv[1]
 port           = sys.argv[2]
 tamanho_janela = int(sys.argv[3])
 md5_erro       = float(sys.argv[4])
-
-janelaDeslizantePacotes = defaultdict(dict) 
-janelaDeslizante = defaultdict(dict)
-primeiro_janela = 0
 
 HOST = ''
 PORT = int(port)
@@ -62,6 +57,7 @@ def processaPacote(pacote, tamanho):
         saida.flush()
 
 def recebendoPacote():#ACK
+        lock = threading.Lock()
         pacoteb = tcp.recv(22)
         tamanho = int.from_bytes(pacoteb[20:22], byteorder='big', signed=False) 
         pacotez = tcp.recv(tamanho+16)
