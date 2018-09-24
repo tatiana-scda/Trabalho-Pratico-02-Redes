@@ -51,28 +51,7 @@ def criadorPacote(num_seq, timestamp_seg, timestamp_nanoseg, mensagem):
     pacote        = calculaMD5(pacote, 22+len(mensagem))
     return pacote
 
-# def recebendoPacoteACK(thread, udp, dest, timeout,):
-#     pacote = udp.recvfrom(36)[0]
-
-#     if(calculaMD5ACK(pacote)): #se o md5 funcionar para o pacote
-#         lock.acquire()
-#         seqNum = pacote[0:8]
-#         seqNum = int.from_bytes(seqNum, byteorder='big', signed=False) #bytearray para int
-#         janelaDeslizanteACKRecebido[seqNum-1] = True
-#         if lock.locked() == True:
-#             lock.release()
-#     else:
-#         time.sleep(timeout)
-#         mensagem          = linhas[thread]
-#         timestamp         = time.time() #para o seg e nanoseg serem da mesma base
-#         timestamp_sec     = int(timestamp)
-#         timestamp_nanosec = int((timestamp % 1)*(10 ** 9))
-
-#         pacote = criadorPacote(seqNum, timestamp_sec, timestamp_nanosec, mensagem)
-#         print(pacote)
-#         udp.sendto(pacote, dest) #envia_pacote
-
-def recebendoPacoteACK(janelaDeslizante, arquivo_entrada):
+def recebendoPacote(janelaDeslizante, arquivo_entrada, udp, dest, timeout):
     global janelaDeslizante
 
     pacote = udp.recvfrom(36)[0]
@@ -82,6 +61,7 @@ def recebendoPacoteACK(janelaDeslizante, arquivo_entrada):
             seqNum = int.from_bytes(seqNum, byteorder='big', signed=False) #bytearray para int
             janelaDeslizante[seqnum].timer = Timer(timeout, handler, [self]) #confere time out e envia ou cancela ack
             janelaCheia +=1
+
 
 def preencherDicts(arquivo_entrada):
     global threads, janelaDeslizante, linhas
@@ -97,30 +77,11 @@ def primeiroSemACK(janelaDeslizanteACKRecebido):
         else:
             return -1
 
-# def enviarPacote(thread, udp, dest, timeout):
-#     global arquivo_entrada 
-#     global janelaCheia
-#     try:
-#         id_pacote         = thread+1
-#         mensagem          = linhas[thread]
-#         timestamp         = time.time() #para o seg e nanoseg serem da mesma base
-#         timestamp_sec     = int(timestamp)
-#         timestamp_nanosec = int((timestamp % 1)*(10 ** 9))
-
-#         #criacao do pacote
-#         pacote            = criadorPacote(id_pacote, timestamp_sec, timestamp_nanosec, mensagem)
-#         udp.sendto(pacote, dest) #envia_pacote
-
-#         while janelaDeslizanteACKRecebido[thread] != True:
-#             recebendoPacoteACK(thread, udp, dest, timeout)
-#     except Exception as e:
-#         if janelaDeslizanteACKRecebido[thread]:
-#             enviarPacote(thread, udp, dest, timeout)
 
 def enviarPacote(udp, dest, timeout):
     global janelaCheia
 
-    while (janelaCheia < tamanho_janela)
+    while (janelaCheia < tamanho_janela):
         timestamp         = time.time() #para o seg e nanoseg serem da mesma base
         timestamp_sec     = int(timestamp)
         timestamp_nanosec = int((timestamp % 1)*(10 ** 9))
@@ -129,10 +90,12 @@ def enviarPacote(udp, dest, timeout):
         pacote            = criadorPacote(id_pacote, timestamp_sec, timestamp_nanosec, mensagem)
         udp.sendto(pacote, dest) #envia_pacote
 
-        while janelaDeslizanteACKRecebido[thread] != True:
-            recebendoPacoteACK(thread, udp, dest, timeout)
+        for i in range len(arquivo_entrada):
+            while janelaDeslizante[i] != True:
+                recebendoPacote(janelaDeslizante, arquivo_entrada, udp, dest, timeout) #incrementa janela
     except Exception as e:
-        pass
+        if janelaDeslizante[i]:
+        enviarPacote(udp, dest, timeout)
 
 # def janelaDeslizanteThreads():
 #     global tamanho_janela, udp, dest, timeout
@@ -154,8 +117,11 @@ def enviarPacote(udp, dest, timeout):
 
 
 
-def andamentoJanela():
+ def janelaDeslizante():
+    global tamanho_janela, udp, dest, timeout
     while(not janelaCheia):
+        preencherDicts(arquivo_entrada) #de acordo com a entrada, preenche os dicts
+        id_esperando = primeiroSemACK(janelaDeslizante)
 
 
 
