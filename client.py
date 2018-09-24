@@ -7,8 +7,10 @@ import time
 import bitstring
 import sys
 from threading import Timer
+from threading import Lock
 from collections import defaultdict
 
+janelaLock = Lock()
 arquivo_entrada             = sys.argv[1]
 ip_port                     = sys.argv[2]
 tamanho_janela              = int(sys.argv[3])
@@ -36,21 +38,28 @@ def calculaMD5(pacote, comeco):
     md5                      = m.digest()
     pacote[comeco:comeco+16] = md5
 
-    if random.random() < md5_erro:
-        pacote[comeco+15:comeco+16] = bitstring.BitArray(uint=0, length=8).bytes
+    rand = random.random()
+    if rand < md5_erro:
+        print(md5_erro, rand)
+        print('CORROMPE')
+        pacote[comeco+15] = (pacote[comeco+15] + 1) % 256
     return pacote
 
 def bateuTimer(seqNum):
     global timeout
 
     print("bateu timer ", seqNum)
+    janelaLock.acquire()
     enviaPacote(seqNum)
     janela[seqNum]['timer'] = Timer(timeout, bateuTimer, [seqNum])
     janela[seqNum]['timer'].start()
-    
+    janelaLock.release()
     
 def enviaPacote(seqNum):
-    global dest, udp
+    global dest, udp, janelaLock
+    if seqNum not in janela:
+        print('Aborting send! seqNum acked!!!!!!!!!!!!')
+        return
     pacote = criadorPacote(seqNum, janela[seqNum]['sec'], janela[seqNum]['nsec'], janela[seqNum]['msg'])
     udp.sendto(pacote, dest)
     print("o pacote é", pacote)
@@ -92,10 +101,11 @@ def recebeACK():
 
 
 def janelaDeslizante():
-    global tamanho_janela, udp, dest, timeout, fimJanela, inicioJanela
+    global tamanho_janela, udp, dest, timeout, fimJanela, inicioJanela, janelaLock
     seqNum = 1
     with open(arquivo_entrada, "r") as file:
         for mensagem in file:
+            mensagem = mensagem.rstrip()
             #id_esperando = primeiroSemACK(janelaDeslizante)
             tamanho = len(mensagem)
             timestamp         = time.time() #para o seg e nanoseg serem da mesma base
@@ -103,8 +113,10 @@ def janelaDeslizante():
             timestamp_nanosec = int((timestamp % 1)*(10 ** 9))
             
             if (fimJanela - inicioJanela == tamanho_janela):
+                janelaLock.acquire()
                 del janela[inicioJanela]
                 inicioJanela  += 1
+                janelaLock.release()
 
             janela[seqNum] = {'msg': mensagem, 'sec': timestamp_sec, 'nsec': timestamp_nanosec, 'acked': False}
             fimJanela += 1
@@ -133,13 +145,13 @@ def janelaDeslizante():
             seqAck, correto = recebeACK()
             if (correto):
                 janela[seqAck]['acked'] = True
+                janela[seqAck]['timer'].cancel()
             else:
                 print("2. md5 errado ", seqAck)
         
         inicioJanela  += 1
-    print(janela)
 
-# udp.close()
+    udp.close()
 
 
 ##### EXECUCAO DO PROGRAMA #####    
