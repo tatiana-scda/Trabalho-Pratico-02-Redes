@@ -97,36 +97,19 @@ def enviarPacote(udp, dest, timeout):
         if janelaDeslizante[i]:
         enviarPacote(udp, dest, timeout)
 
-# def janelaDeslizanteThreads():
-#     global tamanho_janela, udp, dest, timeout
-#     lock = threading.Lock()
-    
-#     preencherDicts(arquivo_entrada) #de acordo com a entrada, preenche os dicts
-#     id_esperando = primeiroSemACK(janelaDeslizanteACKRecebido)
-
-#     for thread in range(len(threads)):
-#         threads[thread] = threading.Thread(target=enviarPacote, args=(thread, udp, dest, timeout))
-#         if threading.active_count() > tamanho_janela: #retorna numero de threads vivos
-#             #while janelaDeslizanteACKRecebido[id_esperando] == False:
-#              #   pass
-#             id_esperando = primeiroSemACK(janelaDeslizanteACKRecebido)
-#         threads[thread] = threads[thread].start()
-#     #while(janelaDeslizanteACKRecebido[id_esperando] != -1):
-#      #   pass
-#     udp.close()
-
-
 
  def janelaDeslizante(tamanho_janela, udp, dest, timeout):
     global tamanho_janela, udp, dest, timeout
     while(not janelaCheia):
         preencherDicts(arquivo_entrada) #de acordo com a entrada, preenche os dicts
         id_esperando = primeiroSemACK(janelaDeslizante)
-        enviarPacote(udp, dest, timeout)
-        recebendoPacote(janelaDeslizante, arquivo_entrada, udp, dest, timeout)
 
+        for i in len(arquivo_entrada):
+            enviarPacote(udp, dest, timeout)
+            recebendoPacote(janelaDeslizante, arquivo_entrada, udp, dest, timeout)
+        udp.close()
 
 
 ##### EXECUCAO DO PROGRAMA #####    
-# janelaDeslizanteThreads()
+janelaDeslizante()
 
