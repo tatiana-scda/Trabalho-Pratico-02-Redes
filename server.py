@@ -6,13 +6,21 @@ import hashlib
 import time
 import bitstring
 import sys
-import threading
-import struct
+from threading import Timer
+from threading import Lock
+from collections import defaultdict
 
 arquivo_saida  = sys.argv[1]
 port           = sys.argv[2]
 tamanho_janela = int(sys.argv[3])
 md5_erro       = float(sys.argv[4])
+saida = open(arquivo_saida, 'w')
+
+janela                       = {}   
+fim_janela                   = 1
+inicio_janela                = 1
+janelaLock                   = Lock()
+janela_cliente               = {}
 
 HOST = '127.0.0.1'
 PORT = int(port)
@@ -22,56 +30,90 @@ dest = (HOST, PORT)
 udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) # UDP
 udp.bind(dest)
 
-def calculaMD5Pacote(pacote):
+def calculaMD5Pacote(pacote): 
     size = int.from_bytes(pacote[20:22], byteorder='big', signed=False) 
     m    = hashlib.md5()
-    md5  = m.update(pacote[0:22+size])
+    m.update(pacote[0:22+size])
     md5  = m.digest()
     return pacote[22+size:38+size] == md5
 
 def calculaMD5ACK(pacote):
+    global md5_erro
     m             = hashlib.md5()
-    md5           = m.update(pacote)
+    m.update(pacote[0:20])
     md5           = m.digest()
     pacote[20:36] = md5
-    if random.random() > md5_erro:
+
+    rand = random.random()
+    if rand < md5_erro:
         pacote[35:36] = bitstring.BitArray(uint=0, length=8).bytes
     return pacote
 
-def criadorPacoteACK(num_seq, timestamp_seg, timestamp_nanoseg):
+def criadorPacoteACK(seq_num):
+    timestamp         = time.time() #para o seg e nanoseg serem da mesma base
+    timestamp_sec     = bitstring.BitArray(uint=int(timestamp), length=64).bytes
+    timestamp_nanosec = bitstring.BitArray(uint=int((timestamp % 1)*(10 ** 9)), length=32).bytes
+    seq_num = bitstring.BitArray(uint=int(seq_num), length=64).bytes
+
     pacote                      = bytearray([])
-    pacote.extend(num_seq)
-    pacote.extend(timestamp_seg)
-    pacote.extend(timestamp_nanoseg)
-    pacote                      = calculaMD5ACK(pacote)
+    pacote.extend(seq_num)
+    pacote.extend(timestamp_sec)
+    pacote.extend(timestamp_nanosec)
+    pacote.extend(calculaMD5ACK(pacote))
     return pacote
 
 def processaPacote(pacote, tamanho):
-    ack = criadorPacoteACK(pacote[0:8], pacote[8:16],pacote[16:20])
-    udp.sendto(ack, (dest))
     mensagem = pacote[22:22+tamanho]
-    with open(arquivo_saida, 'w') as saida:
-        import pdb; pdb.set_trace()
-        saida.write(mensagem.decode("UTF-8"))
-        saida.flush()
+    saida.write(mensagem.decode("UTF-8") + "\n")
+    saida.flush()
 
-def recebendoPacote():#ACK
-        pacoteb, cliente = udp.recvfrom(65535+38)
+def recebendoPacote(): #ACK
+    global janela_cliente, dest, udp
+    
+    pacoteb, cliente = udp.recvfrom(65535+38)
+    endereco_cliente = cliente[0]+':'+str(cliente[1])
 
-        tamanho = int.from_bytes(pacoteb[20:22], byteorder='big', signed=False) 
-        pacote = bytearray(pacoteb)
-        print(pacote)
-        if(calculaMD5Pacote(pacote)): #se o md5 funcionar para o pacote
+    print('Pacote', pacoteb)
+    print('Endereço', endereco_cliente)
+    if(endereco_cliente not in janela_cliente):
+        #inicio da janela, tamanho da janela, dict para janela delizante
+        janela_cliente[endereco_cliente] = (0, tamanho_janela, {}) 
+
+    tamanho = int.from_bytes(pacoteb[20:22], byteorder='big', signed=False) 
+    pacote           = bytearray(pacoteb)
+
+    if(calculaMD5Pacote(pacote)): #se o md5 funcionar para o pacote
+
+        seq_num = pacote[0:8]
+        seq_num = int.from_bytes(seq_num, byteorder='big', signed=False) #transformar de bytearray para int
+        fim_janela    = janela_cliente[endereco_cliente][1]
+        inicio_janela = janela_cliente[endereco_cliente][0]
+
+        #se o pacpte estiver fora da janela
+        if (seq_num > fim_janela):
+            return
+
+        if (seq_num >= inicio_janela):
+            timestamp_sec     = int.from_bytes(pacote[8:16], byteorder='big', signed=False)
+            timestamp_nanosec = int.from_bytes(pacote[16:20], byteorder='big', signed=False)
+
+            janela_cliente[endereco_cliente][2][seq_num] = {'msg': pacote[22:22+tamanho], 'sec': timestamp_sec, 'nsec': timestamp_nanosec}
+
+            if (seq_num == inicio_janela):
+                del janela[inicio_janela]
+                inicio_janela  += 1
+                fim_janela += 1
             
-            seqNum = pacote[0:8]
-            seqNum = int.from_bytes(seqNum, byteorder='big', signed=False) #transformar de bytearray para int
-            print(seqNum)
-            print(pacote[22:22+tamanho])
-            # if seqNum in range(primeiro_janela, primeiro_janela + tamanho_janela):
-            #     janelaDeslizantePacotes[str(seqNum)] = pacote
-            #     if seqNum != primeiro_janela:
+            processaPacote(pacote, tamanho)
+            
+        ack      = criadorPacoteACK(seq_num)
+        udp.sendto(ack, cliente)
+
+            # if seq_num in range(primeiro_janela, primeiro_janela + tamanho_janela):
+            #     janelaDeslizantePacotes[str(seq_num)] = pacote
+            #     if seq_num != primeiro_janela:
             #         completo = True
-            #         for i in range(primeiro_janela, seqNum):
+            #         for i in range(primeiro_janela, seq_num):
             #             if (janelaDeslizantePacotes[str(i)]== ""):
             #                 completo = False
             #             if completo:
