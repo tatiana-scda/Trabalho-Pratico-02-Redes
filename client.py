@@ -10,7 +10,8 @@ from threading import Timer
 from threading import Lock
 from collections import defaultdict
 
-janelaLock = Lock()
+#start_time                  = time.clock()
+janela_lock                 = Lock()
 arquivo_entrada             = sys.argv[1]
 ip_port                     = sys.argv[2]
 tamanho_janela              = int(sys.argv[3])
@@ -41,30 +42,27 @@ def calculaMD5(pacote, comeco):
 
     rand = random.random()
     if rand < md5_erro:
-        print(md5_erro, rand)
-        print('CORROMPE')
+        #print('MD5 corrompido')
         pacote[comeco+15] = (pacote[comeco+15] + 1) % 256
     return pacote
 
 def bateuTimer(seq_num):
     global timeout
 
-    print("bateu timer ", seq_num)
-    janelaLock.acquire()
+    #print("Ocorreu timeout no pacote ", seq_num)
+    janela_lock.acquire()
     enviaPacote(seq_num)
     janela[seq_num]['timer'] = Timer(timeout, bateuTimer, [seq_num])
     janela[seq_num]['timer'].start()
-    janelaLock.release()
+    janela_lock.release()
     
 def enviaPacote(seq_num):
-    global dest, udp, janelaLock
+    global dest, udp, janela_lock
     if seq_num not in janela:
-        print('Aborting send! seq_num acked!!!!!!!!!!!!')
+        #print('ACK chegou de ', seq_num)
         return
     pacote = criadorPacote(seq_num, janela[seq_num]['sec'], janela[seq_num]['nsec'], janela[seq_num]['msg'])
     udp.sendto(pacote, dest)
-    #print("o pacote é", pacote)
-
 
 def criadorPacote(num_seq, timestamp_seg, timestamp_nanoseg, mensagem):
     pacote        = bytearray([])
@@ -79,45 +77,28 @@ def criadorPacote(num_seq, timestamp_seg, timestamp_nanoseg, mensagem):
 def recebeACK():
     global udp
 
-    pacote  = udp.recvfrom(36)[0]
-    correto = calculaMD5ACK(pacote) #se o md5 funcionar para o pacote
+    pacote   = udp.recvfrom(36)[0]
+    correto  = calculaMD5ACK(pacote) #se o md5 funcionar para o pacote
     seq_num  = pacote[0:8]
     seq_num  = int.from_bytes(seq_num, byteorder='big', signed=False) #bytearray para int
     return (seq_num, correto)
 
-# def enviarPacote(dest, pacote):
-#     global udp, timeout, janelaCheia
-
-#     while (janelaCheia < tamanho_janela):
-#         #criacao do pacote
-#         pacote            = criadorPacote(id_pacote, timestamp_sec, timestamp_nanosec, mensagem)
-#         udp.sendto(pacote, dest) #envia_pacote
-
-#         for i in range (len(arquivo_entrada)):
-#             while janelaDeslizante[i] != True:
-#                 recebendoPacote(janelaDeslizante, arquivo_entrada, udp, dest, timeout) #incrementa janela
-#     # except Exception as e:
-    #     if janelaDeslizante[i]:
-    #     enviarPacote(udp, dest, timeout)
-
-
 def janelaDeslizante():
-    global tamanho_janela, udp, dest, timeout, fim_janela, inicio_janela, janelaLock
+    global tamanho_janela, udp, dest, timeout, fim_janela, inicio_janela, janela_lock
     seq_num = 1
     with open(arquivo_entrada, "r") as file:
         for mensagem in file:
             mensagem          = mensagem.rstrip()
-            #id_esperando = primeiroSemACK(janelaDeslizante)
             tamanho           = len(mensagem)
             timestamp         = time.time() #para o seg e nanoseg serem da mesma base
             timestamp_sec     = int(timestamp)
             timestamp_nanosec = int((timestamp % 1)*(10 ** 9))
             
             if (fim_janela - inicio_janela == tamanho_janela):
-                janelaLock.acquire()
+                janela_lock.acquire()
                 del janela[inicio_janela]
                 inicio_janela  += 1
-                janelaLock.release()
+                janela_lock.release()
 
             janela[seq_num] = {'msg': mensagem, 'sec': timestamp_sec, 'nsec': timestamp_nanosec, 'acked': False}
             fim_janela += 1
@@ -131,31 +112,31 @@ def janelaDeslizante():
 
             if (fim_janela - inicio_janela == tamanho_janela):
                 while(not janela[inicio_janela]['acked']):
-                    print("janela travada no ", inicio_janela)
+                    #print("Janela travada no ", inicio_janela)
                     seq_ack, correto = recebeACK()
                     if (correto):
-                        print("Recebi ACK", seq_ack)
+                        #print("Recebi ACK de ", seq_ack)
                         janela[seq_ack]['acked'] = True
                         janela[seq_ack]['timer'].cancel()
-                        print("cancelou timer", seq_ack)
-                    else:
-                        print("md5 errado no ack", seq_ack)
-                print("destravou")
+                        #print("Cancelou o time de ", seq_ack)
+                    #else:
+                        #print("MD5 errado no ack ", seq_ack)
+                #print("Janela destravou")
                 
     while (inicio_janela != fim_janela): 
         while(not janela[inicio_janela]['acked']):
             seq_ack, correto = recebeACK()
             if (correto):
-                print("Recebi ACK", seq_ack)
+                #print("Recebi ACK de", seq_ack)
                 janela[seq_ack]['acked'] = True
                 janela[seq_ack]['timer'].cancel()
-                print("cancelou timer", seq_ack)
-            else:
-                print("md5 errado no ack", seq_ack)
-        
+                #print("Cancelou o time de ", seq_ack)
+            #else:
+                #print("MD5 errado no ack ", seq_ack)
         inicio_janela  += 1
     print("Envio completo! Fechando UDP :)")
     udp.close()
 
 ##### EXECUCAO DO PROGRAMA #####    
 janelaDeslizante()
+#print("--- %s seconds ---" % (time.time() - start_time))
